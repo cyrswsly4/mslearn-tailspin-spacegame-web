@@ -4,38 +4,91 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+# Link to the Variable Group named 'Release'
 variables:
-  buildConfiguration: 'Release'
+- group: Release
+- name: buildConfiguration # This variable was already in your 'steps' section
+  value: 'Release'
 
-steps:
-- task: UseDotNet@2
-  displayName: 'Use .NET SDK 8.x'
-  inputs:
-    packageType: sdk
-    version: '8.x'
-- task: UseNode@1  # <--- THIS IS THE CRUCIAL PART FOR NPM FIX
-  displayName: 'Use Node 16.x'
-  inputs:
-    versionSpec: '16.x'
-- task: Npm@1
-  displayName: 'Run npm install'
-  inputs:
-    verbose: false
-- script: './node_modules/.bin/node-sass Tailspin.SpaceGame.Web/wwwroot --output Tailspin.SpaceGame.Web/wwwroot'
-  displayName: 'Compile Sass assets'
-- task: gulp@1
-  displayName: 'Run gulp tasks'
-- script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
-  displayName: 'Write build info'
-  workingDirectory: Tailspin.SpaceGame.Web/wwwroot
-- task: DotNetCoreCLI@2
-  displayName: 'Restore project dependencies'
-  inputs:
-    command: 'restore'
-    projects: '**/*.csproj'
-- task: DotNetCoreCLI@2
-  displayName: 'Build the project - Release'
-  inputs:
-    command: 'build'
-    arguments: '--no-restore --configuration Release'
-    projects: '**/*.csproj'
+stages:
+- stage: Build
+  displayName: Build
+  jobs:
+  - job: BuildJob
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET SDK 8.x'
+      inputs:
+        packageType: sdk
+        version: '8.x'
+    - task: UseNode@1
+      displayName: 'Use Node 16.x'
+      inputs:
+        versionSpec: '16.x'
+    - task: Npm@1
+      displayName: 'Run npm install'
+      inputs:
+        verbose: false
+    - script: './node_modules/.bin/node-sass Tailspin.SpaceGame.Web/wwwroot --output Tailspin.SpaceGame.Web/wwwroot'
+      displayName: 'Compile Sass assets'
+    - task: gulp@1
+      displayName: 'Run gulp tasks'
+    - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
+      displayName: 'Write build info'
+      workingDirectory: Tailspin.SpaceGame.Web/wwwroot
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore project dependencies'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+    - task: DotNetCoreCLI@2
+      displayName: 'Build the project - Release'
+      inputs:
+        command: 'build'
+        arguments: '--no-restore --configuration Release'
+        projects: '**/*.csproj'
+    - task: DotNetCoreCLI@2 # Add this task to publish the build artifact
+      displayName: 'Publish artifact'
+      inputs:
+        command: 'publish'
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+        zipAfterPublish: true
+    - publish: $(Build.ArtifactStagingDirectory) # This publishes the artifact for subsequent stages
+      artifact: drop
+
+- stage: Dev
+  displayName: Deploy to Dev
+  dependsOn: Build # Ensures the Build stage runs first
+  jobs:
+  - deployment: DeployDev
+    displayName: Deploy to Dev App Service
+    environment: dev # Links to the 'dev' environment you created
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            displayName: 'Deploy Azure App Service Dev'
+            inputs:
+              azureSubscription: 'Resource Manager - Tailspin - Space Game' # Name of your service connection
+              appName: '$(WebAppNameDev)' # Variable from your 'Release' variable group
+              package: '$(Pipeline.Workspace)/drop/**/*.zip' # Path to the published artifact
+
+- stage: Test
+  displayName: Deploy to Test
+  dependsOn: Dev # Ensures Dev deployment runs first
+  jobs:
+  - deployment: DeployTest
+    displayName: Deploy to Test App Service
+    environment: test # Links to the 'test' environment you created
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            displayName: 'Deploy Azure App Service Test'
+            inputs:
+              azureSubscription: 'Resource Manager - Tailspin - Space Game' # Name of your service connection
+              appName: '$(WebAppNameTest)' # Variable from your 'Release' variable group
+              package: '$(Pipeline.Workspace)/drop/**/*.zip' # Path to the published artifact
