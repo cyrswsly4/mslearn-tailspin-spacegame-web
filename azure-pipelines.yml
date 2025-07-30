@@ -32,37 +32,28 @@ stages:
             inputs:
               version: "$(dotnetSdkVersion)"
 
-          # MODIFICATION 1: Add NodeTool@0 to explicitly set Node.js version
           - task: NodeTool@0
-            displayName: "Install Node.js 18.x" # Or '20.x' if you prefer
+            displayName: "Install Node.js 18.x" # You can change to '20.x' or another LTS if preferred
             inputs:
-              versionSpec: "18.x" # Use a stable LTS version for consistency
+              versionSpec: "18.x"
 
           - task: Npm@1
             displayName: "Run npm install"
             inputs:
-              command: "install" # Explicitly use 'install' command
+              command: "install"
               verbose: false
-              # MODIFICATION 2: Specify workingDirectory for npm install
-              workingDirectory: "Tailspin.SpaceGame.Web"
+              workingDirectory: "Tailspin.SpaceGame.Web" # Ensures npm install runs in the correct sub-folder
 
-          # MODIFICATION 3: Replace old node-sass script with Gulp task
-          # The previous 'script' task attempting to run node-sass directly is removed
-          # - script: "./node_modules/.bin/node-sass $(wwwrootDir) --output $(wwwrootDir)"
-          #   displayName: "Compile Sass assets"
-          # Now, Gulp handles the min:css (which would include Sass if configured in gulpfile)
           - task: Gulp@1
             displayName: "Run Gulp build tasks (min:js, min:css)"
             inputs:
-              gulpFile: "Tailspin.SpaceGame.Web/gulpfile.js" # Path to your gulpfile
-              targets: "min" # This will run your 'min' task which includes 'min:js' and 'min:css'
-              # Specify workingDirectory for gulp task
-              workingDirectory: "Tailspin.SpaceGame.Web"
+              gulpFile: "gulpfile.js" # CORRECTED: Path is relative to the workingDirectory
+              targets: "min" # This will run your 'min' Gulp task
+              workingDirectory: "Tailspin.SpaceGame.Web" # Sets the context for gulpFile
 
           - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
             displayName: "Write build info"
-            # MODIFICATION (ensure this working directory is correct for this script too)
-            workingDirectory: $(wwwrootDir)
+            workingDirectory: $(wwwrootDir) # This path is relative to repo root, no issues here
 
           - task: DotNetCoreCLI@2
             displayName: "Restore project dependencies"
