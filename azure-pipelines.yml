@@ -25,35 +25,40 @@ stages:
             - npm
         variables:
           wwwrootDir: "Tailspin.SpaceGame.Web/wwwroot"
-          dotnetSdkVersion: "6.x"
+          dotnetSdkVersion: "8.x" # CORRECTED: Use .NET SDK 8.x for .NET 8.0 project
         steps:
           - task: UseDotNet@2
             displayName: "Use .NET SDK $(dotnetSdkVersion)"
             inputs:
               version: "$(dotnetSdkVersion)"
 
+          # ADDED BACK: NodeTool@0 to ensure correct Node.js version
           - task: NodeTool@0
-            displayName: "Install Node.js 18.x" # You can change to '20.x' or another LTS if preferred
+            displayName: "Install Node.js 18.x"
             inputs:
               versionSpec: "18.x"
 
           - task: Npm@1
             displayName: "Run npm install"
             inputs:
-              command: "install"
+              command: "install" # Explicitly use 'install' command
               verbose: false
-              workingDirectory: "Tailspin.SpaceGame.Web" # Ensures npm install runs in the correct sub-folder
+              workingDirectory: "Tailspin.SpaceGame.Web" # CORRECTED: Specify workingDirectory for npm install
+
+          # REMOVED: The old 'Compile Sass assets' script task - it's replaced by Gulp
+          # - script: "./node_modules/.bin/node-sass $(wwwrootDir) --output $(wwwrootDir)"
+          #   displayName: "Compile Sass assets"
 
           - task: Gulp@1
-            displayName: "Run Gulp build tasks (min:js, min:css)"
+            displayName: "Run Gulp build tasks (min:js, min:css)" # More descriptive display name
             inputs:
-              gulpFile: "gulpfile.js" # CORRECTED: Path is relative to the workingDirectory
-              targets: "min" # This will run your 'min' Gulp task
-              workingDirectory: "Tailspin.SpaceGame.Web" # Sets the context for gulpFile
+              gulpFile: "gulpfile.js" # CORRECTED: Path relative to workingDirectory
+              targets: "min" # As per our discussion, this targets your 'min' task
+              workingDirectory: "Tailspin.SpaceGame.Web" # CORRECTED: Specify workingDirectory for Gulp task
 
           - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
             displayName: "Write build info"
-            workingDirectory: $(wwwrootDir) # This path is relative to repo root, no issues here
+            workingDirectory: $(wwwrootDir)
 
           - task: DotNetCoreCLI@2
             displayName: "Restore project dependencies"
