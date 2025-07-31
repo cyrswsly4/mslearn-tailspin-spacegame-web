@@ -4,7 +4,7 @@ trigger:
 variables:
   buildConfiguration: "Release"
   releaseBranchName: "release"
-  dotnetSdkVersion: "8.x" # Moved to global scope
+  dotnetSdkVersion: "8.x"
 
 schedules:
   - cron: "0 3 * * *"
@@ -60,7 +60,7 @@ stages:
             inputs:
               command: "build"
               arguments: "--no-restore --configuration $(buildConfiguration)"
-              projects: "**/*.csproj"
+              projects: "$(System.DefaultWorkingDirectory)/**/Tailspin.SpaceGame.Web.csproj"
           - task: DotNetCoreCLI@2
             displayName: "Publish the project - $(buildConfiguration)"
             inputs:
@@ -127,7 +127,7 @@ stages:
         dependsOn: Deploy
         displayName: "Run UI tests"
         pool:
-          vmImage: "windows-2019" # New Windows agent for Selenium tests
+          vmImage: "windows-2019"
         variables:
           - group: "Release"
         steps:
@@ -140,14 +140,14 @@ stages:
             inputs:
               command: "build"
               arguments: "--configuration $(buildConfiguration)"
-              projects: "$(System.DefaultWorkingDirectory)/**/*UITests.csproj"
+              projects: "$(System.DefaultWorkingDirectory)/**/Tailspin.SpaceGame.Web.UITests.csproj"
           - task: DotNetCoreCLI@2
             displayName: "Run UI tests - $(buildConfiguration)"
             inputs:
               command: "test"
               arguments: "--no-build --configuration $(buildConfiguration)"
               publishTestResults: true
-              projects: "$(System.DefaultWorkingDirectory)/**/*UITests.csproj"
+              projects: "$(System.DefaultWorkingDirectory)/**/Tailspin.SpaceGame.Web.UITests.csproj"
 
   - stage: "Staging"
     displayName: "Deploy to the staging environment"
