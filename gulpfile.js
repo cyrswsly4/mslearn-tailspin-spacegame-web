@@ -1,42 +1,64 @@
-﻿/// <binding Clean='clean' />
-"use strict";
+﻿var gulp = require("gulp"),
+  imagemin = require("gulp-imagemin"),
+  cleanCss = require("gulp-clean-css"),
+  sass = require("gulp-sass")(require("sass")),
+  concat = require("gulp-concat"),
+  uglify = require("gulp-uglify"),
+  del = require("del");
 
-const gulp = require("gulp"),
-      rimraf = require("rimraf"),
-      concat = require("gulp-concat"),
-      cleanCSS = require("gulp-clean-css"),
-      uglify = require("gulp-uglify");
-
-const paths = {
-  webroot: "./Tailspin.SpaceGame.Web/wwwroot/"
+var paths = {
+  root: "./",
+  dist: "wwwroot/dist/",
+  distImg: "wwwroot/dist/img/",
+  distCss: "wwwroot/dist/css/",
+  distJs: "wwwroot/dist/js/",
+  srcCss: "wwwroot/css/",
+  srcJs: "wwwroot/js/",
 };
 
-paths.js = paths.webroot + "js/**/*.js";
-paths.minJs = paths.webroot + "js/**/*.min.js";
-paths.css = paths.webroot + "css/**/*.css";
-paths.minCss = paths.webroot + "css/**/*.min.css";
-paths.concatJsDest = paths.webroot + "js/site.min.js";
-paths.concatCssDest = paths.webroot + "css/site.min.css";
+// Deletes the entire dist folder
+gulp.task("clean", function () {
+  return del([paths.dist]);
+});
 
-gulp.task("clean:js", done => rimraf(paths.concatJsDest, done));
-gulp.task("clean:css", done => rimraf(paths.concatCssDest, done));
-gulp.task("clean", gulp.series(["clean:js", "clean:css"]));
+// Minify images
+gulp.task("min-img", function () {
+  return gulp
+    .src(paths.root + "img/*.{png,gif,jpg}")
+    .pipe(imagemin())
+    .pipe(gulp.dest(paths.distImg));
+});
 
-gulp.task("min:js", () => {
-  return gulp.src([paths.js, "!" + paths.minJs], { base: "." })
-    .pipe(concat(paths.concatJsDest))
+// Combine and minify css
+gulp.task("min-css", function () {
+  return gulp
+    .src(paths.srcCss + "*.css")
+    .pipe(concat("site.min.css"))
+    .pipe(cleanCss())
+    .pipe(gulp.dest(paths.distCss));
+});
+
+// Compile, combine and minify sass
+gulp.task("min-sass", function () {
+  return gulp
+    .src(paths.root + "scss/*.scss")
+    .pipe(sass())
+    .pipe(concat("site.min.css"))
+    .pipe(cleanCss())
+    .pipe(gulp.dest(paths.distCss));
+});
+
+// Combine and minify js
+gulp.task("min-js", function () {
+  return gulp
+    .src([paths.srcJs + "**/*.js"])
+    .pipe(concat("site.min.js"))
     .pipe(uglify())
-    .pipe(gulp.dest("."));
+    .pipe(gulp.dest(paths.distJs));
 });
 
-gulp.task("min:css", () => {
-  return gulp.src([paths.css, "!" + paths.minCss])
-    .pipe(concat(paths.concatCssDest))
-    .pipe(cleanCSS())
-    .pipe(gulp.dest("."));
-});
-
-gulp.task("min", gulp.series(["min:js", "min:css"]));
-
-// A 'default' task is required by Gulp v4
-gulp.task("default", gulp.series(["min"]));
+// Compiles and minifies everything.
+gulp.task(
+  "min",
+  gulp.series("clean", gulp.parallel("min-img", "min-css", "min-js"))
+);
