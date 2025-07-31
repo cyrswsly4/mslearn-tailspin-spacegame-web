@@ -4,6 +4,7 @@ trigger:
 variables:
   buildConfiguration: "Release"
   releaseBranchName: "release"
+  dotnetSdkVersion: "8.x" # Moved to global scope
 
 schedules:
   - cron: "0 3 * * *"
@@ -25,41 +26,30 @@ stages:
             - npm
         variables:
           wwwrootDir: "Tailspin.SpaceGame.Web/wwwroot"
-          dotnetSdkVersion: "8.x" # CORRECTED: Use .NET SDK 8.x for .NET 8.0 project
         steps:
           - task: UseDotNet@2
             displayName: "Use .NET SDK $(dotnetSdkVersion)"
             inputs:
               version: "$(dotnetSdkVersion)"
-
-          # ADDED BACK: NodeTool@0 to ensure correct Node.js version
           - task: NodeTool@0
             displayName: "Install Node.js 18.x"
             inputs:
               versionSpec: "18.x"
-
           - task: Npm@1
             displayName: "Run npm install"
             inputs:
-              command: "install" # Explicitly use 'install' command
+              command: "install"
               verbose: false
-              workingDirectory: "Tailspin.SpaceGame.Web" # CORRECTED: Specify workingDirectory for npm install
-
-          # REMOVED: The old 'Compile Sass assets' script task - it's replaced by Gulp
-          # - script: "./node_modules/.bin/node-sass $(wwwrootDir) --output $(wwwrootDir)"
-          #   displayName: "Compile Sass assets"
-
+              workingDirectory: "Tailspin.SpaceGame.Web"
           - task: Gulp@1
-            displayName: "Run Gulp build tasks (min:js, min:css)" # More descriptive display name
+            displayName: "Run Gulp build tasks (min:js, min:css)"
             inputs:
-              gulpFile: "gulpfile.js" # CORRECTED: Path relative to workingDirectory
-              targets: "min" # As per our discussion, this targets your 'min' task
-              workingDirectory: "Tailspin.SpaceGame.Web" # CORRECTED: Specify workingDirectory for Gulp task
-
+              gulpFile: "gulpfile.js"
+              targets: "min"
+              workingDirectory: "Tailspin.SpaceGame.Web"
           - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
             displayName: "Write build info"
             workingDirectory: $(wwwrootDir)
-
           - task: DotNetCoreCLI@2
             displayName: "Restore project dependencies"
             inputs:
@@ -75,7 +65,7 @@ stages:
             displayName: "Publish the project - $(buildConfiguration)"
             inputs:
               command: "publish"
-              projects: "**/*.csproj"
+              projects: "$(System.DefaultWorkingDirectory)/**/Tailspin.SpaceGame.Web.csproj"
               publishWebProjects: false
               arguments: "--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)"
               zipAfterPublish: true
@@ -133,6 +123,31 @@ stages:
                     azureSubscription: "Resource Manager - Tailspin - Space Game"
                     appName: "$(WebAppNameTest)"
                     package: "$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip"
+      - job: RunUITests
+        dependsOn: Deploy
+        displayName: "Run UI tests"
+        pool:
+          vmImage: "windows-2019" # New Windows agent for Selenium tests
+        variables:
+          - group: "Release"
+        steps:
+          - task: UseDotNet@2
+            displayName: "Use .NET SDK $(dotnetSdkVersion)"
+            inputs:
+              version: "$(dotnetSdkVersion)"
+          - task: DotNetCoreCLI@2
+            displayName: "Build the project - $(buildConfiguration)"
+            inputs:
+              command: "build"
+              arguments: "--configuration $(buildConfiguration)"
+              projects: "$(System.DefaultWorkingDirectory)/**/*UITests.csproj"
+          - task: DotNetCoreCLI@2
+            displayName: "Run UI tests - $(buildConfiguration)"
+            inputs:
+              command: "test"
+              arguments: "--no-build --configuration $(buildConfiguration)"
+              publishTestResults: true
+              projects: "$(System.DefaultWorkingDirectory)/**/*UITests.csproj"
 
   - stage: "Staging"
     displayName: "Deploy to the staging environment"
